@@ -1,0 +1,1 @@
+This folder contains all packages developed and used for the thesis.
