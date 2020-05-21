@@ -3,8 +3,8 @@
 .directory
 
 # project-specific ignores
-.params
-.h5
+*.params
+*.h5
 
 # ANTLR4-specific ignores
 .antlr
