@@ -18,14 +18,6 @@ class TinyData:
             return cv2.cvtColor(cv2.imread(fpath), cv2.COLOR_BGR2RGB)
         else:
             return cv2.imread(fpath, cv2.IMREAD_GRAYSCALE)
-
-    @staticmethod
-    def imwrite(fpath, image, color=False):
-        if color:
-            image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            cv2.imsave(fpath, image)
-        else:
-            cv2.imsave(fpath, image)
         
     @staticmethod
     def minify(train, test, valid, source_dir, target_path, name_label, x_label="fpath", y_label="word", color=False):
