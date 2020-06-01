@@ -40,8 +40,11 @@ class TinyData:
                 image = TinyData.imread(fpath, color=color)
                 label = row[y_label].encode("utf-8")  # turns Unicode into ASCII bytes
                 nm = row[name_label]
-
-                new_data = hf.create_dataset(f"train/{nm}", data=image, compression="gzip", compression_opts=9)
+                
+                if image is None:
+                    raise ValueError(f"(Train Set) Image {fpath} has size 0. Please remove it from the dataset.")
+                    
+                new_data = hf.create_dataset(f"train/{nm}", data=image, dtype=image.dtype, compression="gzip", compression_opts=9)
                 new_data.attrs["label"] = label
 
             for _, row in tqdm(test.iterrows()):
@@ -49,8 +52,11 @@ class TinyData:
                 image = TinyData.imread(fpath, color=color)
                 label = row[y_label].encode("utf-8")
                 nm = row[name_label]
-
-                new_data = hf.create_dataset(f"test/{nm}", data=image, compression="gzip", compression_opts=9)
+                
+                if image is None:
+                    raise ValueError(f"(Test Set) Image {fpath} has size 0. Please remove it from the dataset.")
+                    
+                new_data = hf.create_dataset(f"test/{nm}", data=image, dtype=image.dtype, compression="gzip", compression_opts=9)
                 new_data.attrs["label"] = label
                 
 
@@ -61,71 +67,12 @@ class TinyData:
                     image = TinyData.imread(fpath, color=color)
                     label = row[y_label].encode("utf-8")
                     nm = row[name_label]
+                    
+                    if image is None:
+                        raise ValueError(f"(Validation Set) Image {fpath} has size 0. Please remove it from the dataset.")
 
-                    hf.create_dataset(f"valid/{nm}", data=image, compression="gzip", compression_opts=9)
+                    new_data = hf.create_dataset(f"valid/{nm}", data=image, dtype=image.dtype, compression="gzip", compression_opts=9)
                     new_data.attrs["label"] = label
 
         print("Done")
-    
-    @staticmethod
-    def unpack(input_path, dest_dir, color=False):
-        """Deminifies / Unpacks the compressed file into train/test/validation DataFrames.
-        Images are saved in .png format.
-        """
-        train, test, valid = pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
-
-        os.mkdirs(f"{dest_dir}/train", exist_ok=True)
-        os.mkdirs(f"{dest_dir}/test", exist_ok=True)
-        os.mkdirs(f"{dest_dir}/valid", exist_ok=True)
-
-        with h5.File(input_path, "r") as hf:
-            names, labels = []
-            for data in hf["train"]:
-                name = data.name.split("/")[-1]
-                image = data[:]
-                label = data.attrs["label"][:].item(0).decode("utf-8")
-
-                names.append(name)
-                labels.append(label)
-                TinyData.imwrite(f"{source_dir}/train/{name}.png", image, color=color)
-
-            train["name"] = names
-            train["label"] = labels
-
-            names, labels = []
-            for data in hf["test"]:
-                name = data.name.split("/")[-1]
-                image = data[:]
-                label = data.attrs["label"][:].item(0).decode("utf-8")
-
-                names.append(name)
-                labels.append(label)
-                TinyData.imwrite(f"{source_dir}/test/{name}.png", image, color=color)
-
-            test["name"] = names
-            test["label"] = labels
-
-            have_valid = hf.get("valid", None) # returns None if it doesn't find valid dataset
-            if have_valid:
-                names, labels = []
-                for data in hf["valid"]:
-                    name = data.name.split("/")[-1]
-                    image = data[:]
-                    label = data.attrs["label"][:].item(0).decode("utf-8")
-
-                    names.append(name)
-                    labels.append(label)
-                    TinyData.imwrite(f"{source_dir}/valid/{name}.png", image, color=color)
-
-                valid["name"] = names
-                valid["label"] = labels
-
-
-        train.to_csv(f"{dest_dir}/train.csv", sep=",", index=False)
-        test.to_csv(f"{dest_dir}/test.csv", sep=",", index=False)
-        valid.to_csv(f"{dest_dir}/valid.csv", sep=",", index=False)
-        
-        return (train, test, valid)
-        
-
 

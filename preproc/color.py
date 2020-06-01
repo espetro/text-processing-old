@@ -2,6 +2,7 @@
 from sklearn.neighbors import KNeighborsClassifier
 from pathlib import Path
 
+import importlib_resources as pkg_resources  # backport of core 3.7 library
 import pickle as pk
 import numpy as np
 import os
@@ -15,14 +16,12 @@ class ColorGroup:
         https://blog.xkcd.com/2010/05/03/color-survey-results/
     """
     # KNearestNeighbor with K=10 and uniform weights
-    CURR_PATH = Path(__file__).parent.absolute()
-    MODEL_PATH = "C:\\Users\\Pachacho\\Documents\\TFG_2020\\src\\packages\\preproc\\data\\knn_10_uniform.pk"
-    LABELS_PATH = "C:\\Users\\Pachacho\\Documents\\TFG_2020\\src\\packages\\preproc\\data\\color_names.npy"
+    MODEL_PATH = pkg_resources.open_binary("preproc.data", "knn_10_uniform.pk")
+    LABELS_PATH = pkg_resources.open_binary("preproc.data", "color_names.npz")
 
     def __init__(self):
         """Loads the saved model"""
-        with open(ColorGroup.MODEL_PATH, "rb") as f:
-            self.model = pk.load(f)
+        self.model = pk.load(ColorGroup.MODEL_PATH)
 
     def predict(self, color):
         """Predicts a new color from saved models
@@ -35,6 +34,8 @@ class ColorGroup:
         -------
             str, predicted color class
         """
+        if color.shape != (1,3):
+            raise ValueError(f"{repr(color)} must be of shape (1,3)")
         return self.model.predict(color)[0]
 
     @staticmethod

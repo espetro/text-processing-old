@@ -79,7 +79,7 @@ class RobustBinarize:
         return result
 
     @staticmethod
-    @nb.njit()
+    @nb.njit(cache=True)
     def enhance_contrast(image: ndarray, gray: ndarray, c:float):
         height, width = gray.shape[:2]
 
@@ -179,7 +179,7 @@ class RobustBinarize:
 
     # compute_mat = np.asarray(cei)
     @staticmethod
-    @nb.njit()
+    @nb.njit(cache=True)
     def estimate_lightness_distr(compute_mat: ndarray, height:int, width:int, erosion: ndarray, cei: ndarray):
         for y in range(width):
             for x in range(height):

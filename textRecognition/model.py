@@ -40,7 +40,7 @@ class FullGatedConv2D(Conv2D):
 class WordHTRFlor:
 
     ASCII_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚüÜñÑ"
+    LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚëËïÏüÜñÑçÇâÂêÊîÎôÔûÛàÀèÈùÙ"
     DECODER_CONFIG = { "greedy": False, "beam_width": 10, "top_paths": 1 }
 
     def __init__(self, logdir, input_size=(224, 224), charset=None, optimizer=None, decoder_conf=None):
