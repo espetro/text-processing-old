@@ -1,13 +1,20 @@
+from keras.models import Model
 from keras.layers import Conv2D, Bidirectional, LSTM, GRU, Dense
-from keras.layers import Dropout, BatchNormalization, LeakyReLU, PReLU
+from keras.layers import Dropout, BatchNormalization, LeakyReLU, PReLU, Multiply
 from keras.layers import Input, Add, Activation, Lambda, MaxPooling2D, Reshape
+from keras.callbacks import CSVLogger, TensorBoard, ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 from keras.optimizers import RMSprop
 from keras.constraints import MaxNorm
 
 import os
 import keras
 import numpy as np
+import tensorflow as tf
 import keras.backend as K
+
+# INPUT_SIZE = (256, 64, 1)
+# MAX_WORD_LENGTH = 64
+# CHARSET = WordHTRFlor.LATIN_CHAR
 
 class FullGatedConv2D(Conv2D):
     """Gated Convolutional Class"""
@@ -43,11 +50,12 @@ class WordHTRFlor:
     LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚëËïÏüÜñÑçÇâÂêÊîÎôÔûÛàÀèÈùÙ"
     DECODER_CONFIG = { "greedy": False, "beam_width": 10, "top_paths": 1 }
 
-    def __init__(self, logdir, input_size=(224, 224), charset=None, optimizer=None, decoder_conf=None):
+    def __init__(self, logdir, input_size=(256, 64, 1), charset=None, optimizer=None, decoder_conf=None, verbose=0):
         self.charset = charset or WordHTRFlor.LATIN_CHAR
         self.model_outputs = len(self.charset) + 1
+        self.logdir = logdir
 
-        self.callbacks = self._set_callbacks()
+        self.callbacks = self._set_callbacks(verbose, monitor="val_loss")
         self.model = self._build_model(input_size, optimizer)
         self.decoder_conf = decoder_conf or WordHTRFlor.DECODER_CONFIG
 
@@ -55,19 +63,19 @@ class WordHTRFlor:
         """ Load a model with checkpoint file"""
         self.model.load_weights(fpath)
 
-    def _set_callbacks(self):
+    def _set_callbacks(self, verbose, monitor):
         """Setup the list of callbacks for the model"""
         callbacks = [
-            CSVLogger(filename=os.path.join(logdir, "epochs.log"), separator=";", append=True),
+            CSVLogger(filename=os.path.join(self.logdir, "epochs.log"), separator=";", append=True),
             TensorBoard(
-                log_dir=logdir,
+                log_dir=self.logdir,
                 histogram_freq=10,
                 profile_batch=0,
                 write_graph=True,
                 write_images=False,
                 update_freq="epoch"),
             ModelCheckpoint(
-                filepath=checkpoint,
+                filepath=f"{self.logdir}/checkpoint.params",
                 monitor=monitor,
                 save_best_only=True,
                 save_weights_only=True,
@@ -98,7 +106,7 @@ class WordHTRFlor:
             kernel_initializer="he_uniform"
         )(input_layer)
         cnn = PReLU(shared_axes=[1,2])(cnn)
-        cnn = BatchNormalization(renorm=True)(cnn)
+        cnn = BatchNormalization()(cnn)
 
         if add_fullgconv:
             cnn = FullGatedConv2D(
@@ -108,8 +116,8 @@ class WordHTRFlor:
                 kernel_constraint=MaxNorm(4, [0,1,2])
             )(cnn)
 
-        if add_dropout:
-            cnn = Dropout(rate=0.2)(cnn)
+            if add_dropout:  # only add it when adding a FullGatedConv layer previously
+                cnn = Dropout(rate=0.2)(cnn)
 
         return cnn
         
@@ -145,15 +153,15 @@ class WordHTRFlor:
 
         input_data = Input(name="input", shape=input_size)
 
-        cnn = WordHTRFlor.ConvLayer(input_data, 16, [(3,3), (3,3)], (2,2), False, True)
+        cnn = WordHTRFlor.ConvLayer(input_data, 16, [(3,3), (3,3)], (2,2), add_dropout=False, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 32, [(3,3), (3,3)], (1,1), False, True)
+        cnn = WordHTRFlor.ConvLayer(cnn, 32, [(3,3), (3,3)], (1,1), add_dropout=False, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 40, [(2,4), (3,3)], (2,4), True, True)
-        cnn = WordHTRFlor.ConvLayer(cnn, 48, [(3,3), (3,3)], (1,1), True, True)
-        cnn = WordHTRFlor.ConvLayer(cnn, 56, [(2,4), (3,3)], (2,4), True, True)
+        cnn = WordHTRFlor.ConvLayer(cnn, 40, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
+        cnn = WordHTRFlor.ConvLayer(cnn, 48, [(3,3), (3,3)], (1,1), add_dropout=True, add_fullgconv=True)
+        cnn = WordHTRFlor.ConvLayer(cnn, 56, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 64, [(3,3), (None, None)], (1,1), False, False)
+        cnn = WordHTRFlor.ConvLayer(cnn, 64, [(3,3), (None, None)], (1,1), add_dropout=False, add_fullgconv=False)
 
         cnn = MaxPooling2D(pool_size=(1,2), strides=(1,2), padding="valid")(cnn)
 
@@ -168,8 +176,8 @@ class WordHTRFlor:
         bgru = Bidirectional(GRU(units=nb_units, return_sequences=True, dropout=0.5))(bgru)
         output_data = Dense(units=self.model_outputs, activation="softmax")(bgru)
 
-        net_optimizer = optimizer or RMSprop(learning_rate=5e-4)
 
+        net_optimizer = optimizer or RMSprop(learning_rate=5e-4)
         model = Model(inputs=input_data, outputs=output_data)
         model.compile(optimizer=net_optimizer, loss=WordHTRFlor.ctc_loss_lambda_func)
         return model
