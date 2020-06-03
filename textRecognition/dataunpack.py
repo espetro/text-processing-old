@@ -91,6 +91,9 @@ class DataUnpack:
             # Remove cursive style (WORKS BADLY FOR 'train_spa/w02_bw_22' and takes so much time)
             # image = RobustBinarize.remove_cursive_style(image)
 
+            # transpose the image (as numpy uses (h,w) shapes and tf uses (w, h) shapes)
+            image = image.transpose()
+
             # at the time of writing, it should follow the folder structure for RIMES and IAM
             DataUnpack.imwrite(f"{dest_dir}/{set_name}/{sample_name}.png", image, color=color)
 
