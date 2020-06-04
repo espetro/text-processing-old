@@ -31,7 +31,8 @@ setup(
         "keras",
         "tqdm",
         "scikit-image",
-        "scikit-learn"
+        "scikit-learn",
+        "importlib_resources"
     ],
     zip_safe=False,
     include_package_data=True,

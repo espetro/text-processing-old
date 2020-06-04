@@ -176,9 +176,9 @@ class WordHTRFlor:
         bgru = Bidirectional(GRU(units=nb_units, return_sequences=True, dropout=0.5))(bgru)
         output_data = Dense(units=self.model_outputs, activation="softmax")(bgru)
 
-
         net_optimizer = optimizer or RMSprop(learning_rate=5e-4)
         model = Model(inputs=input_data, outputs=output_data)
+
         model.compile(optimizer=net_optimizer, loss=WordHTRFlor.ctc_loss_lambda_func)
         return model
 
