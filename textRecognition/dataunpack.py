@@ -116,12 +116,13 @@ class DataUnpack:
 
             # transpose the image (as numpy uses (h,w) shapes and tf uses (w, h) shapes)
             image = image.transpose()
+            image = np.expand_dims(image, axis=-1)  # add a sigle, grayscale channel to the image
 
             images.append(image)
             labels.append(label)
             vectors.append(encoded_vector)
 
-        return (np.asarray(images), np.asarray(labels), np.asarray(vectors))
+        return list(np.asarray(images), np.asarray(labels), np.asarray(vectors))  # so that they can be modified
 
     @staticmethod
     def unpack(input_path, dest_dir, color=False, save_to_disk=False, target_size=None, aspect_ratio:float=None, max_word_length=34):
