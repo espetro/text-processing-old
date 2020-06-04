@@ -100,7 +100,7 @@ class DataUnpack:
 
         return result
 
-     @staticmethod
+    @staticmethod
     def load_set(set_name, file, target_size=None, aspect_ratio=None):
         """Performs the unpacking step for each dataset split (train/test/validation). Images are restored as RGB."""
         images, labels, vectors = [], [], []
