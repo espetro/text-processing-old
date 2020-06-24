@@ -28,12 +28,13 @@ setup(
         "antlr4-python3-runtime",
         "h5py",
         "pandas",
-        "keras">=2.3.1,
+        "keras >= '2.3.1'",
         "tqdm",
         "scikit-image",
         "scikit-learn",
         "importlib_resources",
-        "keras_octave_conv"
+        "keras_octave_conv",
+        "mxnet"
     ],
     zip_safe=False,
     include_package_data=True,
