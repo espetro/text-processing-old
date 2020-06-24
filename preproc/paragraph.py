@@ -1,16 +1,19 @@
-from gluon.nn import HybridBlock, HybridSequential, 
-from gluon.nn import Conv2D, Flatten, Dense, Dropout
-from gluon.loss import L2Loss
-from gluon.model_zoo.vision import resnet34_v1
+from mxnet.gluon.nn import HybridBlock, HybridSequential
+from mxnet.gluon.nn import Conv2D, Flatten, Dense, Dropout
+from mxnet.gluon.loss import L2Loss
+from mxnet.gluon.model_zoo.vision import resnet34_v1
 
+import importlib_resources as pkg_resources
 import mxnet as mx
 
-class ParagraphSegmentationNetwork(HybridBlock):
+class SegmentationNetwork(HybridBlock):
     """Paragraph segmentation network based on Deep CNN.
 
     Source:
         https://github.com/awslabs/handwritten-text-recognition-for-apache-mxnet
     """
+    MODEL_PATH = pkg_resources.files("preproc.data").joinpath("cnn_mse.params")
+
     def __init__(self, p_dropout=0.5, ctx=mx.cpu()):
         super(SegmentationNetwork, self).__init__()
 
@@ -29,7 +32,7 @@ class ParagraphSegmentationNetwork(HybridBlock):
             first_layer = Conv2D(
                 channels=64, kernel_size=(7, 7), padding=(3, 3), strides=(2, 2), in_channels=1, use_bias=False
             )
-            first_layer.initialize(mx.init.Normal(), ctx=ctx)
+            first_layer.initialize(mx.init.Normal(), ctx=self.ctx)
             first_layer.weight.set_data(first_weights)
 
             body.add(first_layer)
@@ -44,7 +47,7 @@ class ParagraphSegmentationNetwork(HybridBlock):
                 output.add(Dropout(p_dropout))
                 output.add(Dense(4, activation='sigmoid'))
 
-            output.collect_params().initialize(mx.init.Normal(), ctx=ctx)
+            output.collect_params().initialize(mx.init.Normal(), ctx=self.ctx)
             body.add(output)
         
         return body
@@ -52,13 +55,14 @@ class ParagraphSegmentationNetwork(HybridBlock):
     def hybrid_forward(self, F, x):
         return self.cnn(x)
 
-    def load_params(params_fpath):
-        self.load_parameters(params_fpath)
+    def load_params(self, params_fpath=None):
+        params_fpath = params_fpath or str(SegmentationNetwork.MODEL_PATH)
+        self.cnn.load_parameters(params_fpath)
 
 
 
 if __name__ == "__main__":
     net = SegmentationNetwork()
-    net.load_params("cnn_mse.params")
+    net.load_params()
     
 

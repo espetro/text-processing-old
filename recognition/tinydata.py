@@ -1,4 +1,4 @@
-from textRecognition import StringVectorizer
+from recognition import StringVectorizer
 from pandas import DataFrame as DF
 from tqdm import tqdm
 

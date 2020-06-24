@@ -1,3 +1,4 @@
+from preproc.paragraph import SegmentationNetwork
 from preproc.RobustBinarize import RobustBinarize
 from preproc.FastBinarize import FastBinarize
 from preproc.quantization import Quantize

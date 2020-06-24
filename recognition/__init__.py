@@ -1,5 +1,6 @@
 # Functions to obtain text from word images
-from textRecognition.model import WordHTRFlor, FullGatedConv2D
-from textRecognition.vectorizer import StringVectorizer
-from textRecognition.dataunpack import DataUnpack
-from textRecognition.tinydata import TinyData
+from recognition.text import RecognitionNet, FullGatedConv2D
+from recognition.vectorizer import StringVectorizer
+from recognition.color import HighlightDetector
+from recognition.dataunpack import DataUnpack
+from recognition.tinydata import TinyData

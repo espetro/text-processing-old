@@ -11,58 +11,65 @@ from tensorflow.keras.mixed_precision import experimental as mixed_precision
 import os
 import numpy as np
 import tensorflow as tf
-import tensorflow.keras
+import tensorflow.keras as keras
 import tensorflow.keras.backend as K
+import importlib_resources as pkg_resources
 
 policy = mixed_precision.Policy('mixed_float16')
 mixed_precision.set_policy(policy)
 
 # INPUT_SIZE = (266, 64, 1)
 # MAX_WORD_LENGTH = 64
-# CHARSET = WordHTRFlor.LATIN_CHAR
+# CHARSET = RecognitionNet.LATIN_CHAR
 
 class FullGatedConv2D(Conv2D):
     """Gated Convolutional Class"""
 
-    def __init__(self, filters, **kwargs):
-        super(FullGatedConv2D, self).__init__(filters=filters * 2, **kwargs)
-        self.nb_filters = filters
+    def __init__(self, filters=32, **kwargs):
+        super().__init__(filters=filters * 2, **kwargs)
+        self.gated_filters = filters
 
     def call(self, inputs):
         """Apply gated convolution"""
-        output = super(FullGatedConv2D, self).call(inputs)
-        linear = Activation("linear")(output[:, :, :, :self.nb_filters])
-        sigmoid = Activation("sigmoid")(output[:, :, :, self.nb_filters:])
+        output = super().call(inputs)
+        linear = Activation("linear")(output[:, :, :, :self.gated_filters])
+        sigmoid = Activation("sigmoid")(output[:, :, :, self.gated_filters:])
 
         return Multiply()([linear, sigmoid])
 
     def compute_output_shape(self, input_shape):
         """Compute shape of layer output"""
-        output_shape = super(FullGatedConv2D, self).compute_output_shape(input_shape)
-        return tuple(output_shape[:3]) + (self.nb_filters,)
+        output_shape = super().compute_output_shape(input_shape)
+        return tuple(output_shape[:3]) + (self.gated_filters,)
 
     def get_config(self):
         """Return the config of the layer"""
-        config = super(FullGatedConv2D, self).get_config()
-        config['nb_filters'] = self.nb_filters
-        del config['filters']
+        config = super().get_config()
+        config.update({"gated_filters": self.gated_filters})
         return config
 
 
-class WordHTRFlor:
+class RecognitionNet:
+    MODEL_PATH = pkg_resources.files("recognition.data").joinpath("crnn_model_20e.h5")  # pretrained model
 
     ASCII_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚëËïÏüÜñÑçÇâÂêÊîÎôÔûÛàÀèÈùÙ"
     DECODER_CONFIG = { "greedy": False, "beam_width": 10, "top_paths": 1 }
 
-    def __init__(self, logdir, input_size=(256, 64, 1), arch="flor", charset=None, optimizer=None, decoder_conf=None, verbose=0):
-        self.charset = charset or WordHTRFlor.LATIN_CHAR
+    def __init__(self, logdir, input_size=(256, 64, 1), arch="base", charset=None, optimizer=None, decoder_conf=None, verbose=0):
+        self.charset = charset or RecognitionNet.LATIN_CHAR
         self.model_outputs = len(self.charset) + 1
         self.logdir = logdir
 
         self.callbacks = self._set_callbacks(verbose, monitor="val_loss")
         self.model = self._build_model(input_size, optimizer, arch)
-        self.decoder_conf = decoder_conf or WordHTRFlor.DECODER_CONFIG
+        self.decoder_conf = decoder_conf or RecognitionNet.DECODER_CONFIG
+
+    def load_model(self, fpath=None):
+        """Load a model from a .h5 Keras file"""
+        fpath = fpath or str(RecognitionNet.MODEL_PATH)
+        objs = {"FullGatedConv2D": FullGatedConv2D}
+        self.model = keras.models.load_model(fpath, custom_objects=objs)
 
     def load_chkpt(self, fpath):
         """ Load a model with checkpoint file"""
@@ -150,13 +157,13 @@ class WordHTRFlor:
 
         return loss
 
-    def _build_model(self, input_size, optimizer=None, arch="flor"):
+    def _build_model(self, input_size, optimizer=None, arch="base"):
         """Configures the HTR Model for training/predict. Uses Flor model.
 
         Parameters
         ----------
             arch: str
-                One of "flor" or "octave".
+                One of "base" or "octave".
             
         Source:
             https://github.com/arthurflor23/handwritten-text-recognition
@@ -166,15 +173,15 @@ class WordHTRFlor:
         
         input_data = Input(name="input", shape=input_size)
 
-        cnn = WordHTRFlor.ConvLayer(input_data, 16, [(3,3), (3,3)], (2,2), add_dropout=False, add_fullgconv=True)
+        cnn = RecognitionNet.ConvLayer(input_data, 16, [(3,3), (3,3)], (2,2), add_dropout=False, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 32, [(3,3), (3,3)], (1,1), add_dropout=False, add_fullgconv=True)
+        cnn = RecognitionNet.ConvLayer(cnn, 32, [(3,3), (3,3)], (1,1), add_dropout=False, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 40, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
-        cnn = WordHTRFlor.ConvLayer(cnn, 48, [(3,3), (3,3)], (1,1), add_dropout=True, add_fullgconv=True)
-        cnn = WordHTRFlor.ConvLayer(cnn, 56, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
+        cnn = RecognitionNet.ConvLayer(cnn, 40, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
+        cnn = RecognitionNet.ConvLayer(cnn, 48, [(3,3), (3,3)], (1,1), add_dropout=True, add_fullgconv=True)
+        cnn = RecognitionNet.ConvLayer(cnn, 56, [(2,4), (3,3)], (2,4), add_dropout=True, add_fullgconv=True)
 
-        cnn = WordHTRFlor.ConvLayer(cnn, 64, [(3,3), (None, None)], (1,1), add_dropout=False, add_fullgconv=False)
+        cnn = RecognitionNet.ConvLayer(cnn, 64, [(3,3), (None, None)], (1,1), add_dropout=False, add_fullgconv=False)
 
         cnn = MaxPooling2D(pool_size=(1,2), strides=(1,2), padding="valid")(cnn)
 
@@ -193,7 +200,7 @@ class WordHTRFlor:
         net_optimizer = optimizer or RMSprop(learning_rate=5e-4)
         model = Model(inputs=input_data, outputs=output_data)
 
-        model.compile(optimizer=net_optimizer, loss=WordHTRFlor.ctc_loss_lambda_func)
+        model.compile(optimizer=net_optimizer, loss=RecognitionNet.ctc_loss_lambda_func)
         return model
 
     def predict(self, x, batch_size=None, verbose=0, steps=1, callbacks=None, max_queue_size=10, workers=1,
@@ -254,3 +261,8 @@ class WordHTRFlor:
                 progbar.update(steps_done)
 
         return (predicts, probabilities)
+
+if __name__ == "__main__":
+    net = RecognitionNet(".")
+    net.load_model()
+    net.summary()

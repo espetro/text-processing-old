@@ -28,7 +28,7 @@ setup(
         "antlr4-python3-runtime",
         "h5py",
         "pandas",
-        "keras",
+        "keras">=2.3.1,
         "tqdm",
         "scikit-image",
         "scikit-learn",
