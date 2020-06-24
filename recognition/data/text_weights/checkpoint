@@ -1,0 +1,2 @@
+model_checkpoint_path: "crnn_model_1e_weights.ckpt"
+all_model_checkpoint_paths: "crnn_model_1e_weights.ckpt"

@@ -9,7 +9,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import LabelEncoder
 
 import importlib_resources as pkg_resources
-import recognition.data as rdt
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np

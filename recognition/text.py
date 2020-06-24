@@ -50,7 +50,8 @@ class FullGatedConv2D(Conv2D):
 
 
 class RecognitionNet:
-    MODEL_PATH = pkg_resources.files("recognition.data").joinpath("crnn_model_20e.h5")  # pretrained model
+    MODEL_PATH = pkg_resources.files("recognition.data").joinpath("text_weights/crnn_model_1e_weights.ckpt")  # pretrained model
+    OBJECTS = {"FullGatedConv2D": FullGatedConv2D}
 
     ASCII_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚëËïÏüÜñÑçÇâÂêÊîÎôÔûÛàÀèÈùÙ"
@@ -66,13 +67,17 @@ class RecognitionNet:
         self.decoder_conf = decoder_conf or RecognitionNet.DECODER_CONFIG
 
     def load_model(self, fpath=None):
-        """Load a model from a .h5 Keras file"""
+        """Load a model from a .h5 or .pb Keras file. NOT WORKING AS OF NOW."""
         fpath = fpath or str(RecognitionNet.MODEL_PATH)
-        objs = {"FullGatedConv2D": FullGatedConv2D}
-        self.model = keras.models.load_model(fpath, custom_objects=objs)
+        
+        if ".h5" in fpath:
+            self.model = keras.models.load_model(fpath, custom_objects=RecognitionNet.OBJECTS)
+        else:
+            self.model = keras.models.load_model(fpath)
 
-    def load_chkpt(self, fpath):
-        """ Load a model with checkpoint file"""
+    def load_chkpt(self, fpath=None):
+        """ Load a model with checkpoint file. Currently working as 'load_model' needs a complex solution"""
+        fpath = fpath or str(RecognitionNet.MODEL_PATH)
         self.model.load_weights(fpath)
 
     def _set_callbacks(self, verbose, monitor):
@@ -264,5 +269,6 @@ class RecognitionNet:
 
 if __name__ == "__main__":
     net = RecognitionNet(".")
-    net.load_model()
+    # net.load_model()
+    net.load_chkpt
     net.summary()
