@@ -32,7 +32,8 @@ setup(
         "tqdm",
         "scikit-image",
         "scikit-learn",
-        "importlib_resources"
+        "importlib_resources",
+        "keras_octave_conv"
     ],
     zip_safe=False,
     include_package_data=True,
