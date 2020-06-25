@@ -64,7 +64,7 @@ class Page:
         return gray
 
     @staticmethod
-    def get_lines(image):
+    def get_lines(image, scale_factor=2.0):
         """Extract a list of text lines given a binarized image.
 
         Parameters
@@ -74,11 +74,11 @@ class Page:
         -------
             lines: list of (image, [height, width])
         """
-        return LineSegmentation(image).segment()
+        return LineSegmentation(image, scale_factor).segment()
 
     @staticmethod
     def get_words(lines):
-        return [WordSegmentation(line, (start, end)) for line, (start, end) in lines]
+        return [WordSegmentation(line, (start, end)).get_words() for line, (start, end) in lines]
 
     @staticmethod
     def deslant_text(image):

@@ -23,8 +23,10 @@ class LanguageTransformer:
             The filepath of the output file. If None, a random name is given to the file.
 
     """
-    def __init__(self, listener, fpath=None, output_fpath=None):
-        if fpath:
+    def __init__(self, listener, fpath=None, text_input=None, output_fpath=None):
+        if text_input:
+            text = InputStream(text_input)
+        elif fpath:
             text = FileStream(fpath, encoding="utf-8")
         else:
             text = InputStream(input("> "))

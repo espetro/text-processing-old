@@ -45,7 +45,7 @@ class WordSegmentation:
         """
         bbs = WordSegmentation.get_word_boxes(self.image, self.proj, self.height)
 
-        self.words = ((self.image[:, y:width], (self.lstart, ymin, self.lend, ymax)) for (ymin, ymax) in bbs)
+        self.words = ((self.image[:, ymin:ymax], (self.lstart, ymin, self.lend, ymax)) for (ymin, ymax) in bbs)
         self.words = [(word, params) for word, params in self.words if np.count_nonzero(word) != np.size(word)]  # remove all-white images
         return self.words
 

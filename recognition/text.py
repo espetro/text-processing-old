@@ -8,6 +8,8 @@ from tensorflow.keras.constraints import MaxNorm
 
 from tensorflow.keras.mixed_precision import experimental as mixed_precision
 
+from recognition.dataunpack import DataUnpack
+
 import os
 import numpy as np
 import tensorflow as tf
@@ -57,16 +59,19 @@ class RecognitionNet:
 
     ASCII_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     LATIN_CHAR = " !\"#$%&'()*+,-.0123456789:;<>@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzáÁéÉíÍóÓúÚëËïÏüÜñÑçÇâÂêÊîÎôÔûÛàÀèÈùÙ"
-    DECODER_CONFIG = { "greedy": False, "beam_width": 10, "top_paths": 1 }
+    DECODER_CONFIG = { "greedy": False, "beam_width": 5, "top_paths": 1 }
+    INPUT_SIZE = (256, 64, 1)
 
-    def __init__(self, logdir, input_size=(256, 64, 1), arch="base", charset=None, optimizer=None, decoder_conf=None, verbose=0):
+    def __init__(self, logdir, input_size=None, arch="base", charset=None, optimizer=None, decoder_conf=None, verbose=0):
         self.charset = charset or RecognitionNet.LATIN_CHAR
         self.model_outputs = len(self.charset) + 1
         self.logdir = logdir
 
+        self.input_size = input_size or RecognitionNet.INPUT_SIZE
         self.callbacks = self._set_callbacks(verbose, monitor="val_loss")
-        self.model = self._build_model(input_size, optimizer, arch)
         self.decoder_conf = decoder_conf or RecognitionNet.DECODER_CONFIG
+
+        self.model = self._build_model(self.input_size, optimizer, arch)
 
     def load_model(self, fpath=None):
         """Load a model from a .h5 or .pb Keras file. NOT WORKING AS OF NOW."""
@@ -269,8 +274,25 @@ class RecognitionNet:
 
         return (predicts, probabilities)
 
+    @staticmethod
+    def preprocess(image, aspect_ratio=None, target_size=None):
+        """Preprocessing function for an image (integer np.array) in RGB mode.
+
+        Source:
+            recognition.DataUnpack.unpack_set method
+        """
+        target_size = target_size or RecognitionNet.INPUT_SIZE  # defaults to (256, 64, 1)
+
+        if target_size and aspect_ratio:
+            image = DataUnpack.resize("", image, target_size, aspect_ratio)
+        
+        image = image.transpose()
+        image = np.expand_dims(image, axis=-1)  # add a sigle, grayscale channel to the image
+        image = image / 255.  # normalize it
+        return np.asarray(image)
+
 if __name__ == "__main__":
     net = RecognitionNet(".")
     # net.load_model()
-    net.load_chkpt
+    net.load_chkpt()
     net.summary()

@@ -31,79 +31,6 @@ class Peak:
         return peak.position
 
 
-class Line:
-    """Represent the separator among line regions."""
-    CHUNK_NUMBER = 20
-
-    def __init__(self, initial_valley_id  = -1):
-        """
-        min_row_pos : the row at which a region starts
-        max_row_pos : the row at which a region ends
-        
-        above: Region above the line
-        below: Region below the line
-
-        valley_ids: ids of valleys
-        points: points representing the line
-        """
-        self.min_row_pos = 0
-        self.max_row_pos = 0
-        self.points = [] # (x,y)
-
-
-        self.above = 0 #Region type
-        self.below = 0 #Region type
-        self.valley_ids = []
-        if initial_valley_id != -1: #means that there is a valley
-            self.valley_ids.append(initial_valley_id)
-        self.initial_valley_id = initial_valley_id
-    
-    def generate_initial_points(self, chunk_width, img_width, map_valley={}):
-        c = 0
-        prev_row = 0
-        #sort the valleys according to their chunk number
-        self.valley_ids.sort()
-        #add line points in the first chunks having no valleys
-        if map_valley[self.valley_ids[0]].chunk_index > 0:
-            prev_row = map_valley[self.valley_ids[0]].position
-            self.max_row_pos = self.min_row_pos = prev_row
-            for j in range(map_valley[self.valley_ids[0]].chunk_index * chunk_width):
-                if c == j:
-                    c += 1
-                    self.points.append((prev_row,j))
-
-        # Add line points between the valleys
-        for id in self.valley_ids:
-            chunk_index = map_valley[id].chunk_index
-            chunk_row = map_valley[id].position
-            chunk_start_column = chunk_index * chunk_width
-
-            for j in range(chunk_start_column, chunk_start_column + chunk_width):
-                self.min_row_pos = min(self.min_row_pos, chunk_row)
-                self.max_row_pos = max(self.max_row_pos, chunk_row)
-                if c == j:
-                    c+=1
-                    self.points.append((chunk_row, j))
-        
-            if prev_row != chunk_row:
-                prev_row = chunk_row
-                self.min_row_pos = min(self.min_row_pos, chunk_row)
-                self.max_row_pos = max(self.max_row_pos, chunk_row)
-        # Add line points in the last chunks having no valleys
-        if Line.CHUNK_NUMBER - 1 > map_valley[self.valley_ids[-1]].chunk_index:
-            chunk_index = map_valley[self.valley_ids[-1]].chunk_index
-            chunk_row = map_valley[self.valley_ids[-1]].position
-
-            for j in range(chunk_index * chunk_width + chunk_width,img_width):
-                if c == j:
-                    c+=1
-                    self.points.append((chunk_row, j))
-
-        
-    def get_min_row_position(self, line):
-        return line.min_row_pos
-
-
 class Valley:
     """A class representing valleys (local contiguous minimum points in a histogram)"""
     ID = 0
@@ -130,6 +57,83 @@ class Valley:
         return v1.position < v2.position
 
 
+class Line:
+    """Represent the separator among line regions."""
+    
+    def __init__(self, initial_valley_id=-1, chunk_number=20):
+        """
+        min_row_pos : the row at which a region starts
+        max_row_pos : the row at which a region ends
+        
+        above: Region above the line
+        below: Region below the line
+
+        valley_ids: ids of valleys
+        points: points representing the line
+        """
+        self.min_row_pos = 0
+        self.max_row_pos = 0
+        self.points = [] # (x,y)
+        self.chunk_number = chunk_number
+
+        self.above = 0 #Region type
+        self.below = 0 #Region type
+        self.valley_ids = []
+        if initial_valley_id != -1: #means that there is a valley
+            self.valley_ids.append(initial_valley_id)
+            
+        self.initial_valley_id = initial_valley_id
+    
+    def generate_initial_points(self, chunk_width, img_width, map_valley={}):
+        """"""
+        c, prev_row = 0, 0
+        
+        #sort the valleys according to their chunk number
+        self.valley_ids.sort()
+
+        #add line points in the first chunks having no valleys
+        if map_valley[self.valley_ids[0]].chunk_index > 0:
+            prev_row = map_valley[self.valley_ids[0]].position
+            self.max_row_pos = self.min_row_pos = prev_row
+            for j in range(map_valley[self.valley_ids[0]].chunk_index * chunk_width):
+                if c == j:
+                    c += 1
+                    self.points.append((prev_row,j))
+
+        # Add line points between the valleys
+        
+        for id in self.valley_ids:
+            chunk_index = map_valley[id].chunk_index
+            chunk_row = map_valley[id].position
+            chunk_start_column = chunk_index * chunk_width
+
+            for j in range(chunk_start_column, chunk_start_column + chunk_width):
+                self.min_row_pos = min(self.min_row_pos, chunk_row)
+                self.max_row_pos = max(self.max_row_pos, chunk_row)
+                if c == j:
+                    c+=1
+                    self.points.append((chunk_row, j))
+        
+            if prev_row != chunk_row:
+                prev_row = chunk_row
+                self.min_row_pos = min(self.min_row_pos, chunk_row)
+                self.max_row_pos = max(self.max_row_pos, chunk_row)
+
+        # Add line points in the last chunks having no valleys
+        if self.chunk_number - 1 > map_valley[self.valley_ids[-1]].chunk_index:
+            chunk_index = map_valley[self.valley_ids[-1]].chunk_index
+            chunk_row = map_valley[self.valley_ids[-1]].position
+
+            for j in range(chunk_index * chunk_width + chunk_width,img_width):
+                if c == j:
+                    c+=1
+                    self.points.append((chunk_row, j))
+
+        
+    def get_min_row_position(self, line):
+        return line.min_row_pos
+
+
 class Chunk:
     """Class Chunk represents the vertical segment cut.
     There are 20 CHUNK, because each every chunk is 5% of a image
@@ -153,9 +157,9 @@ class Chunk:
         self.width = width
         self.thresh_img = img.copy()
 
-        self.histogram = []  # length is the number of rows in an image
-        for i in range(self.thresh_img.shape[0]):  #rows
-            self.histogram.append(0)
+        # length is the number of rows in an image
+        self.histogram = [0 for i in range(self.thresh_img.shape[0])]
+
         self.peaks = [] # Peak type
         self.valleys = [] #Valley type
         self.avg_height = 0
@@ -209,7 +213,7 @@ class Chunk:
         # 30 is hyper-parameter
         self.avg_height = max(30, int(self.avg_height + self.avg_height / 2.0))
 
-
+    # @nb.jit(forceobj=True, cache=True)
     def find_peaks_valleys(self, map_valley = {}):
         self.calculate_histogram()
         #detect peaks
@@ -288,6 +292,7 @@ class Chunk:
         return int(math.ceil(self.avg_height))
 
 
+# @nb.jitclass()
 class Region():
     """Class representing the line regions"""
 
@@ -357,47 +362,57 @@ class Region():
             for i in range(int(start), int(end)):
                 self.region[i - int(min_region_row)][c] = gray_image[i][c]
 
-        self.calculate_mean()
-        self.calculate_covariance()
+        self.mean = Region.calculate_mean(self.region, self.row_offset, self.mean)
+        self.covariance = Region.calculate_covariance(self.region, self.row_offset, self.mean)
 
         return cv2.countNonZero(self.region) == (self.region.shape[0] * self.region.shape[1])
 
-    def calculate_mean(self):
-        self.mean[0][0] = 0.0
-        self.mean[0][1] = 0.0
+    @staticmethod
+    @nb.jit()
+    def calculate_mean(region, row_offset, mean):
+        mean[0][0] = 0.0
+        mean[0][1] = 0.0
         n = 0
-        for i in range(self.region.shape[0]):
-            for j in range(self.region.shape[1]):
+
+        reg_height, reg_width = region.shape[:2]
+        for i in range(reg_height):
+            for j in range(reg_width):
                 # if white pixel continue.
-                if self.region[i][j] == 255.0:
+                if region[i][j] == 255.0:
                     continue
                 if n == 0:
                     n = n + 1
-                    self.mean[0][0] = i + self.row_offset
-                    self.mean[0][1] = j
+                    mean[0][0] = i + row_offset
+                    mean[0][1] = j
                 else:
                     vec = np.zeros((1,2))
-                    vec[0][0] = i + self.row_offset
+                    vec[0][0] = i + row_offset
                     vec[0][1] = j
-                    self.mean = ((n - 1.0) / n) * self.mean + (1.0 / n) * vec
+                    mean = ((n - 1.0) / n) * mean + (1.0 / n) * vec
                     n = n + 1
-        # print(self.mean)
+        
+        return mean
 
-    def calculate_covariance(self):
-        n = 0  # Total number of considered points (pixels) so far
-        self.covariance = np.zeros([2, 2], dtype=np.float32)
+    @staticmethod
+    @nb.njit(cache=True)
+    def calculate_covariance(region, row_offset, mean):
+        # Total number of considered points (pixels) so far
+        n = 0
+        reg_height, reg_width = region.shape[:2]
+
+        covariance = np.zeros((2, 2))
         sum_i_squared = 0
         sum_j_squared = 0
         sum_i_j = 0
 
-        for i in range(self.region.shape[0]):
-            for j in range(self.region.shape[1]):
+        for i in range(reg_height):
+            for j in range(reg_width):
                 # if white pixel continue
-                if int(self.region[i][j]) == 255:
+                if int(region[i][j]) == 255:
                     continue
 
-                new_i = i + self.row_offset - self.mean[0][0]
-                new_j = j - self.mean[0][1]
+                new_i = i + row_offset - mean[0][0]
+                new_j = j - mean[0][1]
 
                 sum_i_squared += new_i * new_i
                 sum_i_j += new_i * new_j
@@ -405,17 +420,21 @@ class Region():
                 n += 1
 
         if n:
-            self.covariance[0][0] = sum_i_squared / n
-            self.covariance[0][1] = sum_i_j / n
-            self.covariance[1][0] = sum_i_j / n
-            self.covariance[1][1] = sum_j_squared / n
+            covariance[0][0] = float(sum_i_squared / n)
+            covariance[0][1] = float(sum_i_j / n)
+            covariance[1][0] = float(sum_i_j / n)
+            covariance[1][1] = float(sum_j_squared / n)
 
-    def bi_variate_gaussian_density(self, point):
-        point[0][0] -= self.mean[0][0]
-        point[0][1] -= self.mean[0][1]
-        # print(point)
+        return covariance
+
+    @staticmethod
+    @nb.njit(cache=True)
+    def bi_variate_gaussian_density(point, mean, covariance):
+        point[0][0] -= mean[0][0]
+        point[0][1] -= mean[0][1]
+
         point_transpose = np.transpose(point)
-        ret = ((point * inv(self.covariance) * point_transpose))
-        ret *= np.sqrt(det(2 * math.pi * self.covariance))
-        # print("Ret[0][0]: {}".format(ret[0][0]))
-        return ret[0][0]
+        ret = ((point * inv(covariance) * point_transpose))
+        ret *= np.sqrt(det(2 * math.pi * covariance))
+
+        return int(ret[0][0])

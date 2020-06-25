@@ -10,6 +10,7 @@ import sys
 CHUNK_NUMBER = 20
 CHUNK_TOBE_PROCESSED = 5
 
+@nb.njit(cache=True)
 def union(a,b):
     """
     :param a: rect
@@ -22,18 +23,24 @@ def union(a,b):
     h = max(a[1]+a[3], b[1]+b[3]) - y
     return (x, y, w, h)
 
+
 def intersection(a,b):
     """
     :param a:  rect
     :param b:  rect
     :return: intersection area 
     """
+    
     x = max(a[0], b[0])
     y = max(a[1], b[1])
     w = min(a[0]+a[2], b[0]+b[2]) - x
     h = min(a[1]+a[3], b[1]+b[3]) - y
-    if w<0 or h<0: return () # does not intersect
-    return (x, y, w, h)
+
+    if w < 0 or h < 0:
+        return []  # does not intersect
+    else:
+        return [x, y, w, h]
+
 
 def mergeRects(rects):
     """
@@ -46,7 +53,7 @@ def mergeRects(rects):
         for j in range(i+1, len(rects)):
             rect_tmp = intersection(rects[i], rects[j])
             # Check for intersection / union
-            if rect_tmp == ():
+            if len(rect_tmp) == 0:
                 continue
             rect_tmp_area = rect_tmp[2] * rect_tmp[3]
             rect_i_area = rects[i][2] * rects[i][3]
@@ -68,7 +75,7 @@ def mergeRects(rects):
     return merged_rects
 
 class LineSegmentation:
-    def __init__(self, img=np.array((0, 0))):
+    def __init__(self, image, scale_factor=2.0):
         """
         img: binarized image loaded
         output_path:
@@ -77,7 +84,6 @@ class LineSegmentation:
         avg_line_height: the average height of lines in the image
         """
         self.output_path = ""
-        self.img = img
         self.chunks = []
         self.chunk_width = 0
         self.map_valley = {}  # {int, Valley}
@@ -88,36 +94,76 @@ class LineSegmentation:
 
         self.avg_line_height = 0
 
-        self.not_primes_list = [0] * 100007
-        self.primes = []
-        # sieve
-        self.sieve()
+        self.primes = LineSegmentation.sieve()
 
-    def sieve(self):
-        self.not_primes_list[0] = 1
-        self.not_primes_list[1] = 1
+        self.img = image
+
+        if len(image.shape) == 3:  # i.e. RGB image or Grayscale with a single channel
+            if image.shape[-1] == 1:
+                self.gray_img = self.img[:,:,0]
+            else:
+                self.gray_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
+        else:
+            self.gray_img = self.img
+
+    @staticmethod
+    def rescale(image, scale_factor):
+        return cv2.resize(image, None, fx=scale_factor, fy=scale_factor, interpolation=cv2.INTER_CUBIC)
+
+    def segment(self):
+        """Return a list of cut images's path plus their bounding boxes"""
+        self.pre_process_img()
+        self.find_contours()
+        # Divide image into vertical chunks
+        self.generate_chunks()
+        # Get initial lines
+        self.get_initial_lines()
+
+        # self.save_image_with_lines(self.output_path + "/Initial_Lines.jpg")
+
+        # Get initial line regions
+        self.generate_regions()
+        # repeair all initial lines and generate the final line region
+        self.repair_lines()
+        # Generate the final line regions
+        self.generate_regions()
+
+        # save image drawn lines
+        # self.save_image_with_lines(self.output_path + "/Final_Lines.bmp")
+
+        return self.get_regions()
+
+    @staticmethod
+    def sieve():
+        """Performs the Sieve of Erastothenes."""
+        not_primes_list = np.zeros(100007)
+        primes = np.array([0])
+        primes = primes[:0]
+
+        not_primes_list[0] = not_primes_list[1] = 1
         for i in range(2, 100000):
-            if self.not_primes_list[i] == 1:
+            if not_primes_list[i] == 1:
                 continue
 
-            self.primes.append(i)
+            primes = np.append(primes, i)
             for j in range(i * 2, 100000, i):
-                self.not_primes_list[j] = 1
+                not_primes_list[j] = 1
 
-    def addPrimesToList(self, n, probPrimes):
-        for i in range(len(self.primes)):
-            while (n % self.primes[i]):
-                n /= self.primes[i]
-                probPrimes[i] += 1
+        return primes
+
+    @staticmethod
+    def add_primes_to_list(primes, n, prob_primes):
+        for i in range(len(primes)):
+            while (n % primes[i]):
+                n /= primes[i]
+                prob_primes[i] += 1
+                
 
     def pre_process_img(self):
-        self.gray_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2GRAY)
         # blur image
         smoothed_img = cv2.blur(self.gray_img, (3, 3), anchor=(-1, -1))
 
         _, self.thresh = cv2.threshold(smoothed_img, 0, 255, cv2.THRESH_BINARY | cv2.THRESH_OTSU)
-
-        # cv2.imwrite(self.output_path + "/Binary_image.jpg", self.thresh)
 
     def find_contours(self):
         thresh_clone = self.thresh.copy()
@@ -290,22 +336,21 @@ class LineSegmentation:
                 contour_point = np.zeros([1, 2], dtype=np.uint8)
                 contour_point[0][0] = j_contour
                 contour_point[0][1] = i_contour
-                # print(contour_point)
+                
                 if line.above != 0:
-                    newProbAbove = int(line.above.bi_variate_gaussian_density(
-                        contour_point))
+                    mean, cov = line.above.mean, line.above.covariance
+                    newProbAbove = Region.bi_variate_gaussian_density(contour_point, mean, cov)
                 else:
                     newProbAbove = 0
 
                 if line.below != 0:
-                    newProbBelow = int(line.below.bi_variate_gaussian_density(
-                        contour_point))
+                    mean, cov = line.below.mean, line.below.covariance
+                    newProbBelow = Region.bi_variate_gaussian_density(contour_point, mean, cov)
                 else:
                     newProbBelow = 0
 
-                self.addPrimesToList(newProbAbove, probAbovePrimes)
-                self.addPrimesToList(newProbBelow, probBelowPrimes)
-                # print(newProbAbove, newProbBelow)
+                LineSegmentation.add_primes_to_list(self.primes, newProbAbove, probAbovePrimes)
+                LineSegmentation.add_primes_to_list(self.primes, newProbBelow, probBelowPrimes)
 
         prob_above = 0
         prob_below = 0
@@ -455,25 +500,3 @@ class LineSegmentation:
 
         return output_image_path
 
-    def segment(self):
-        """Return a list of cut images's path plus their bounding boxes"""
-        self.pre_process_img()
-        self.find_contours()
-        # Divide image into vertical chunks
-        self.generate_chunks()
-        # Get initial lines
-        self.get_initial_lines()
-
-        # self.save_image_with_lines(self.output_path + "/Initial_Lines.jpg")
-
-        # Get initial line regions
-        self.generate_regions()
-        # repeair all initial lines and generate the final line region
-        self.repair_lines()
-        # Generate the final line regions
-        self.generate_regions()
-
-        # save image drawn lines
-        # self.save_image_with_lines(self.output_path + "/Final_Lines.bmp")
-
-        return self.get_regions()

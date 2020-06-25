@@ -76,7 +76,7 @@ class RobustBinarize:
 
         # 5. Compute result
         result = RobustBinarize.compute_result(cei, erosion, ldi, bl)
-        return result
+        return result.astype(np.uint8)
 
     @staticmethod
     @nb.njit(cache=True)

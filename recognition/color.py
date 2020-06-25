@@ -14,6 +14,7 @@ from PIL import Image
 
 import importlib_resources as pkg_resources  # backport of core 3.7 library
 import matplotlib.pyplot as plt
+import skimage.exposure as exp
 import pickle as pk
 import pandas as pd
 import numpy as np
@@ -47,15 +48,25 @@ class HighlightDetector:
         return (arr - np.min(arr)) / (np.max(arr) - np.min(arr))
 
     @staticmethod
-    def preprocess(image):
+    def preprocess(image, brightness=20, contrast_gain=0.05):
         """
         Parameters
         ----------
             image: ndarray image in RGB mode
         """
+        hsv = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        hsv[:,:,2] += brightness
+        
+        image = cv2.cvtColor(hsv, cv2.COLOR_HSV2RGB)
+        image = exp.adjust_sigmoid(image, cutoff=0.5 - contrast_gain)
+        
         image = Quantize.reduce_palette(image, num_colors=4)
         return HighlightDetector.minmax_scaler(image)
 
+    @staticmethod
+    def decode(prediction):
+        return {1: "Non-highlighted", 0: "Highlighted"}.get(prediction)
+        
     @staticmethod
     def _build_model(input_size):
         model = Sequential()
@@ -95,7 +106,7 @@ class HighlightDetector:
 
     def predict(self, X_test):
         """"""
-        return self.model.predict(X_test).flatten()
+        return self.model.predict_classes(X_test).flatten()
 
     def cross_validate(self, X, Y, k=10, epochs=30, batch_sz=128):
         kfold = StratifiedKFold(n_splits=k, shuffle=True)
@@ -112,9 +123,12 @@ class HighlightDetector:
 
 class ColorExtractor:
     """A class representing the color extraction algorithm.
+    Given an image, it obtains a set of color names.
+    It uses a custom clustering algorithm under the hood (namely MMCQ).
 
     Source:
         https://github.com/fengsp/color-thief-py.git
+        http://www.leptonica.com
 
     Parameters
     ----------
@@ -169,7 +183,9 @@ def expand_colors(color_names_file):
 
 class ColorGroup:
     """
-    Color grouping functions
+    A class representing the color naming algorithm.
+    Given an RGB tuple, it returns the name of the closest CSS3 name color.
+    It uses K-NN under the hood.
 
     Source:
         https://blog.algolia.com/how-we-handled-color-identification/
