@@ -8,14 +8,24 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import LabelEncoder
 
-import importlib_resources as pkg_resources
+from sklearn.neighbors import KNeighborsClassifier
+from colorthief import ColorThief
+from PIL import Image
+
+import importlib_resources as pkg_resources  # backport of core 3.7 library
 import matplotlib.pyplot as plt
+import pickle as pk
 import pandas as pd
 import numpy as np
+import numbers
 import keras
 import cv2
+import os
+
 
 class HighlightDetector:
+    """A class"""
+    
     NUM_CLASSES = 2
     TARGET_SIZE = (150,150, 3)
     MODEL_PATH = pkg_resources.files("recognition.data").joinpath("highlight_model_30e.h5")
@@ -96,7 +106,149 @@ class HighlightDetector:
         fpath = fpath or str(HighlightDetector.MODEL_PATH)
         self.model = keras.models.load_model(fpath)
 
-# ------
+
+# =====================================
+
+
+class ColorExtractor:
+    """A class representing the color extraction algorithm.
+
+    Source:
+        https://github.com/fengsp/color-thief-py.git
+
+    Parameters
+    ----------
+        image: ndarray of shape (X,Y) in RGB mode
+    """
+    def __init__(self, image):
+        if not issubclass(image.dtype.type, numbers.Integral):
+            self.image = Image.fromarray((image * 255.).astype(np.uint8))
+
+        self.image = Image.fromarray(image)
+        
+    def palette(self, num_colors=3, precise=True, preprocess=True):
+        quality = {True: 1, False: 8}.get(precise)
+        extractor = ColorThief(self.image)
+        
+        colors = extractor.get_palette(color_count=num_colors, quality=quality)
+        if preprocess:
+            colors = ColorGroup.preprocess(colors)
+        
+        return colors[:num_colors]
+
+# =====================================
+
+def expand_colors(color_names_file):
+    """Extends the KNN classifier by adding new colors to the labels / samples arrays.
+
+    Source:
+        https://github.com/algolia/color-extractor (color_names.npz)
+    """
+
+    rng, new_labels, new_samples = range(240, 256, 1), [], []
+    for c1 in rng:
+        for c2 in rng:
+            for c3 in rng:
+                new_samples.append((c1,c2,c3))
+    new_labels = ["white"] * len(new_samples)
+
+    with open(color_names_file, "rb") as f:
+        old_colors = np.load(color_names_file, allow_pickle=True)
+
+    samples, labels = old_colors.get("samples"), old_colors.get("labels")
+    samples = np.concatenate((samples, np.array(new_samples)))
+    labels = np.concatenate((labels, np.array(new_labels)))
+
+    model = KNeighborsClassifier(n_neighbors, weights=weights)
+    model.fit(samples, labels)
+
+    np.savez("color_names_white.npz", samples=samples, labels=labels)
+    with open("knn_10_uniform_white.pk", "wb") as f:
+        pk.dump(model, f)
+
+
+class ColorGroup:
+    """
+    Color grouping functions
+
+    Source:
+        https://blog.algolia.com/how-we-handled-color-identification/
+        https://blog.xkcd.com/2010/05/03/color-survey-results/
+    """
+    # KNearestNeighbor with K=10 and uniform weights
+    MODEL_PATH = pkg_resources.files("recognition.data").joinpath("knn_10_uniform_white_mini.pk")
+    LABELS_PATH = pkg_resources.files("recognition.data").joinpath("color_names_white_mini.npz")
+
+    def __init__(self):
+        """Loads the saved model"""
+        with open(str(ColorGroup.MODEL_PATH), "rb") as f:
+            self.model = pk.load(f)
+
+    def predict(self, color):
+        """Predicts a new color from saved models
+        Parameters
+        ----------
+            color: numpy array of shape (1,3)
+                A RGB color
+        
+        Returns
+        -------
+            str, predicted color class
+        """
+        if color.shape != (1,3):
+            raise ValueError(f"{repr(color)} must be of shape (1,3)")
+        return self.model.predict(color)[0]
+
+    @staticmethod
+    def preprocess(colors):
+        new_colors = [np.array(color) for color in colors]
+        for color in new_colors:
+            color.shape = (1,3)
+        return new_colors
+
+    @staticmethod
+    def simple_predict(color):
+        """A simple predictor using Euclidean Distance
+        Parameters
+        ----------
+            color: numpy array of shape (1,3)
+                A RGB color
+        
+        Returns
+        -------
+            str, predicted color class
+        """
+        data = np.load(str(ColorGroup.LABELS_PATH), allow_pickle=True)
+        samples = data.get("samples")
+        labels = data.get("labels")
+
+        euclid_dist = np.sqrt(np.sum((samples - color) ** 2, axis=1))
+        idx = np.argmin(euclid_dist)
+        return labels[idx]
+
+    @staticmethod
+    def kneighbors_predict(color, n_neighbors=10, weights="uniform"):
+        """Builds a new KNearestNeighbor classifier
+        Parameters
+        ----------
+            color: numpy array of shape (1,3)
+                A RGB color
+        
+        Returns
+        -------
+            str, predicted color class
+        """
+        data = np.load(ColorGroup.LABELS_PATH)
+        samples = data.get("samples")
+        labels = data.get("labels")
+
+        model = KNeighborsClassifier(n_neighbors, weights=weights)
+        model.fit(samples, labels)
+        return model.predict(color)[0]
+
+
+# =====================================
+
 
 def image_loader(fpath, source_dir, target_size=(150,150)):
     image = cv2.cvtColor(cv2.imread(f"{source_dir}/{fpath}.png"), cv2.COLOR_BGR2RGB)

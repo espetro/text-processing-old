@@ -50,6 +50,8 @@ class FullGatedConv2D(Conv2D):
 
 
 class RecognitionNet:
+    """A class"""
+    
     MODEL_PATH = pkg_resources.files("recognition.data").joinpath("text_weights/crnn_model_1e_weights.ckpt")  # pretrained model
     OBJECTS = {"FullGatedConv2D": FullGatedConv2D}
 

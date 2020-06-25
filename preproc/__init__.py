@@ -5,4 +5,3 @@ from preproc.quantization import Quantize
 from preproc.line import LineSegmentation
 from preproc.word import WordSegmentation
 from preproc.deslant import Deslanter
-from preproc.color import ColorGroup
