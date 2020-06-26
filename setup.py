@@ -34,7 +34,9 @@ setup(
         "scikit-learn",
         "importlib_resources",
         "keras_octave_conv",
-        "mxnet"
+        "mxnet",
+        "jamspell",
+        "pyspellchecker"
     ],
     zip_safe=False,
     include_package_data=True,

@@ -1,7 +1,11 @@
 from typing import List
-from jamspell import TSpellCorrector
 from langdetect import detect, DetectorFactory
-# from spellchecker import SpellChecker
+
+try:
+    # jamspell requires a specific installation (along with C++'s Swig 3.0)
+    from jamspell import TSpellCorrector
+except ModuleNotFoundError:
+    from spellchecker import SpellChecker
 
 import importlib_resources as pkg_resources  # backport of core 3.7 library
 
