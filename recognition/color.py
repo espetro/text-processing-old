@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import LabelEncoder
 
 from sklearn.neighbors import KNeighborsClassifier
-from colorthief import ColorThief
+from recognition.colorthief import ColorThief
 from PIL import Image
 
 import importlib_resources as pkg_resources  # backport of core 3.7 library
